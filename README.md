@@ -2,6 +2,8 @@
 
 The source code for *STAN: Spatio-Temporal Attention Network for Pandemic Prediction Using Real World Evidence*
 
+*Our paper is a pre-print version and is also under reviewing. There are still some issues in our code and paper and we are currently fixing them*
+
 ## Requirements
 
 * Install python, pytorch. We use Python 3.7.3, Pytorch 1.1.
