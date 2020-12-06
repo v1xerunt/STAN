@@ -14,45 +14,44 @@ class GATLayer(nn.Module):
     def __init__(self, g, in_dim, out_dim):
         super(GATLayer, self).__init__()
         self.g = g.to(device)
+        # equation (1)
         self.fc = nn.Linear(in_dim, out_dim, bias=False).to(device)
+        # equation (2)
         self.attn_fc = nn.Linear(2 * out_dim, 1, bias=False).to(device)
 
-    def edge_attention(self, edges):
-        inter=torch.diag(torch.mm(edges.src['z'].to(device), torch.transpose(edges.dst['z'].to(device),0,1) ))
-        norm_z1 = torch.diag(torch.sqrt(torch.mm(edges.src['z'].to(device),torch.transpose(edges.src['z'].to(device),0,1))))
-        norm_z2 = torch.diag(torch.sqrt(torch.mm(edges.dst['z'].to(device),torch.transpose(edges.dst['z'].to(device),0,1))))
-
-        a = inter
-
-        return {'e':a.to(device)}
 
     def message_func(self, edges):
+        # message UDF for equation (3) & (4)
         return {'z': edges.src['z'].to(device), 'e': edges.data['e'].to(device)}
 
+    def edge_attention(self, edges):
+        # edge UDF for equation (2)
+        z2 = torch.cat([edges.src['z'], edges.dst['z']], dim=1)
+        a = self.attn_fc(z2)
+        return {'e' : F.leaky_relu(a)}
+
+
+
     def reduce_func(self, nodes):
-        alpha = F.softmax(nodes.mailbox['e'], dim=1).to(device)
-        h = torch.mm(alpha, nodes.mailbox['z'][0,:,:]).to(device)
-        return {'h': h}
+        # reduce UDF for equation (3) & (4)
+        # equation (3)
+        alpha = F.softmax(nodes.mailbox['e'], dim=1)
+        # equation (4)
+        h = torch.sum(alpha * nodes.mailbox['z'], dim=1)
+        return {'h' : h}
 
     def forward(self, h):
+        # equation (1)
         z = self.fc(h.to(device)).to(device)
         self.g.ndata['z'] = z.to(device)
+        # equation (2)
         self.g.apply_edges(self.edge_attention)
+        # equation (3) & (4)
         self.g.update_all(self.message_func, self.reduce_func)
         return self.g.ndata.pop('h').to(device)
 
 
-def edge_attention(self, edges):
-    z2 = torch.cat([edges.src['z'], edges.dst['z']], dim=1)
-    a = self.attn_fc(z2)
-    return {'e' : F.leaky_relu(a)}
-  
 
-
-def reduce_func(self, nodes):
-    alpha = F.softmax(nodes.mailbox['e'], dim=1)
-    h = torch.sum(alpha * nodes.mailbox['z'], dim=1)
-    return {'h' : h}
 
 class MultiHeadGATLayer(nn.Module):
     def __init__(self, g, in_dim, out_dim, num_heads, merge='cat'):
@@ -80,10 +79,12 @@ class GAT(nn.Module):
         self.ig = g.to(device)
         
         
-        self.layer1 = MultiHeadGATLayer(g, in_dim, hidden_dim1, num_heads)
-        self.layer2 = MultiHeadGATLayer(g, hidden_dim1 * num_heads, hidden_dim2, 1)
+        self.layer1 = MultiHeadGATLayer(self.ig, in_dim, hidden_dim1, num_heads)
+        self.layer2 = MultiHeadGATLayer(self.ig, hidden_dim1 * num_heads, hidden_dim2, 1)
         
         self.num_locs = num_locs
+
+        #self.nn_param = nn.Linear(hidden_dim2, 2)
 
         self.pred_horizon = pred_horizon
         
@@ -93,25 +94,6 @@ class GAT(nn.Module):
         self.nn_res2 = nn.Linear(gru_dim+2,2)
         self.hidden_dim2 = hidden_dim2
         self.gru_dim = gru_dim
-  
-    def input_attention(self, edges):
-      
-        dot_p=torch.diag(torch.mm(edges.src['iz'].to(device), torch.transpose(edges.dst['iz'].to(device),0,1) ))
-        norm_h1 = torch.diag(torch.sqrt(torch.mm(edges.src['iz'].to(device),torch.transpose(edges.src['iz'].to(device),0,1))))
-        norm_h2 = torch.diag(torch.sqrt(torch.mm(edges.dst['iz'].to(device),torch.transpose(edges.dst['iz'].to(device),0,1))))
-        
-        
-        iz2=(dot_p/norm_h1/norm_h2)**4
-      
-        return {'e': iz2.to(device)}
-
-    def input_message_func(self, edges):
-        return {'iz': edges.src['iz'].to(device), 'e': edges.data['e'].to(device)}
-
-    def input_reduce_func(self, nodes):
-        alpha = nodes.mailbox['e'].to(device)
-        ih = torch.mm(alpha, nodes.mailbox['iz'][0,:,:]).to(device)
-        return {'ih': ih}  
   
 
     def forward(self, h, N, I, R, S, It, Rt):
@@ -132,11 +114,7 @@ class GAT(nn.Module):
         for each_step in range(T):        
           iz=h[each_step,:]
           self.ig.ndata['iz'] = iz.to(device)
-          self.ig.apply_edges(self.input_attention)
-          self.ig.update_all(self.input_message_func, self.input_reduce_func)
-          ih=self.ig.ndata.pop('ih').to(device)
-        
-          cur_h = self.layer1(ih)
+          cur_h = self.layer1(iz)
           cur_h = F.relu(cur_h)
           cur_h = self.layer2(cur_h)
           cur_h = torch.max(F.relu(cur_h), 0)[0].reshape(1, self.hidden_dim2)
@@ -189,3 +167,4 @@ def ccc(y_true, y_pred):
     numerator = 2 * cor * sd_true * sd_pred
     denominator = var_true + var_pred + (mean_true - mean_pred) ** 2
     return numerator / denominator
+

@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
-from utils import calc_distance
+import calc_distance
 import dgl
 from dgl import DGLGraph
 from numpy import unravel_index
 from scipy import sparse
 import torch
-from utils import utils
-  
+from utils import *
+
 
 def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1): 
 # read the data file
@@ -79,7 +79,7 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
   T_after_merge = dates_after_merge.size
 
   
-  
+  print(by_state)
   by_state_np=np.array(by_state)
   
   # All features are in raw_data_w_popn
@@ -87,8 +87,8 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
   # smooth the data using the smooth1d function 
   
   win_len=5
-  
-  
+  print(by_state_np[:,4])
+  print(by_state_np)
   for n in range(N_after_merge):
     by_state_np[n*T_after_merge:(n+1)*T_after_merge,4] = smooth1d(by_state_np[n*T_after_merge:(n+1)*T_after_merge,4]\
                                                                       , win_len)
@@ -133,7 +133,10 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
     lat1,lon1, pop1 = lat_long_pop[ii]
     for jj in range(N_after_merge):
       lat2,lon2, pop2 = lat_long_pop[jj]
-      W_mat[ii,jj] = calc_distance.gravity_law_commute_dist(lat1,lon1,pop1,lat2,lon2,pop2,r)
+      if ii == jj:
+        W_mat[ii,jj] = 0
+      else:
+        W_mat[ii,jj] = calc_distance.gravity_law_commute_dist(lat1,lon1,pop1,lat2,lon2,pop2,r)
 
 #  popn_density = np.reshape(np.array(by_state['density']),(N_after_merge,T_after_merge))
 #  
@@ -154,25 +157,40 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
 #  W_norm_thresh = (W_norm > 1e-3)*W_norm
 #  W_sparse = sparse.coo_matrix(W_norm_thresh)
   
+#  W_sparse=sparse.coo_matrix(W_mat)
+#  
+#  values = W_sparse.data
+#  indices = np.vstack((W_sparse.row, W_sparse.col))
+#
+#  i = torch.LongTensor(indices)
+#  v = torch.FloatTensor(values)
+#  shape = W_sparse.shape
+#
+#  Adj=torch.sparse.FloatTensor(i, v, torch.Size(shape)).to_dense()
+
   W_sparse=sparse.coo_matrix(W_mat)
   
-  values = W_sparse.data
-  indices = np.vstack((W_sparse.row, W_sparse.col))
-
-  i = torch.LongTensor(indices)
-  v = torch.FloatTensor(values)
-  shape = W_sparse.shape
-
-  Adj=torch.sparse.FloatTensor(i, v, torch.Size(shape)).to_dense()
-
-  row_sum=torch.sum(Adj,dim=1)
-  row_sum[row_sum==0]=1
+  adj = W_sparse + W_sparse.T.multiply(W_sparse.T > W_sparse) - W_sparse.multiply(W_sparse.T > W_sparse)
   
-  invD_sqrt=torch.diag(torch.sqrt(row_sum.pow_(-1)))
-  Adj_norm=torch.mm(invD_sqrt,(torch.mm(Adj,invD_sqrt)))
-  Adj_norm=(Adj_norm-torch.diag(torch.diag(Adj_norm)))+torch.eye(Adj_norm.shape[0])
-  
-  
+  def normalize_adj(mx):
+    """Row-normalize sparse matrix"""
+    rowsum = np.array(mx.sum(1))
+    r_inv_sqrt = np.power(rowsum, -0.5).flatten()
+    r_inv_sqrt[np.isinf(r_inv_sqrt)] = 0.
+    r_mat_inv_sqrt = sparse.diags(r_inv_sqrt)
+    return mx.dot(r_mat_inv_sqrt).transpose().dot(r_mat_inv_sqrt)
+
+  adj = normalize_adj(adj+sparse.eye(adj.shape[0]))
+  Adj_norm = torch.FloatTensor(np.array(adj.todense()))
+
+#  row_sum=torch.sum(Adj,dim=1)
+#  row_sum[row_sum==0]=1
+#  
+#  invD_sqrt=torch.diag(torch.sqrt(row_sum.pow_(-1)))
+#  Adj_norm=torch.mm(invD_sqrt,(torch.mm(Adj,invD_sqrt)))
+#  Adj_norm=(Adj_norm-torch.diag(torch.diag(Adj_norm)))+torch.eye(Adj_norm.shape[0])
+#  
+#  
   # W_sparse contains the adjacency matrix, which is good enough 
   # for the GCN model 
   
@@ -192,9 +210,12 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
 
 #  print("Using identity matrix as adjacency matrix")
 #  Adj_norm = torch.eye(Adj_norm.shape[0])
+#
+#  g=DGLGraph()
+#  g.from_scipy_sparse_matrix(sparse.csr_matrix(Adj_norm.data.numpy()))
+#  
 
   g=DGLGraph()
   g.from_scipy_sparse_matrix(sparse.csr_matrix(Adj_norm.data.numpy()))
-  
   
   return feat_tensor, Adj_norm, active_cases, confirmed_cases,pop_data, sel,g
