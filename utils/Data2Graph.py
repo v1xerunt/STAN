@@ -78,8 +78,6 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
   dates_after_merge = np.unique(np.array(by_state['date']))
   T_after_merge = dates_after_merge.size
 
-  
-  print(by_state)
   by_state_np=np.array(by_state)
   
   # All features are in raw_data_w_popn
@@ -87,8 +85,6 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
   # smooth the data using the smooth1d function 
   
   win_len=5
-  print(by_state_np[:,4])
-  print(by_state_np)
   for n in range(N_after_merge):
     by_state_np[n*T_after_merge:(n+1)*T_after_merge,4] = smooth1d(by_state_np[n*T_after_merge:(n+1)*T_after_merge,4]\
                                                                       , win_len)
@@ -99,14 +95,12 @@ def load_data(data_filename, auxiliary_filename,active_thresh=1000, r=1):
   
   popn=np.array(by_state['population']).astype('double')
 
-  by_state_no_pop=by_state.drop(['population', 'n_bed'], axis=1)
-  
-  
+  by_state_np=by_state_np.drop(['population', 'n_bed'], axis=1)
   
   dates=np.array(by_state)[:,1]
   active=np.array(by_state)[:,2]
   confirmed=np.array(by_state)[:,3]
-  other_feat = np.array(by_state_no_pop)[:,2:] # includes the active, confirmed # cases 
+  other_feat = np.array(by_state_np)[:,2:] # includes the active, confirmed # cases 
   
 
   active_cases = torch.from_numpy(np.reshape(active,(N_after_merge, T_after_merge),order='C').astype('float64'))
