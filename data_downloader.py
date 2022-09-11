@@ -31,7 +31,7 @@ class GenerateTrainingData:
                                     'Active': "active", 'FIPS': "fips", "People_Hospitalized": "hospitalization"}) \
             .dropna(subset=['fips'])
         data.loc[:, "fips"] = data['fips'].astype(int)
-        data = data[self.common_columns].fillna(0)
+        data = data[self.common_columns]
         return data
 
     def download_jhu_data(self, start_time, end_time):
@@ -39,7 +39,7 @@ class GenerateTrainingData:
         data = Pool().map(self.download_single_file, date_list)
         print('Finish download')
         data = [x for x in data if x is not None]
-        data = pd.concat(data, axis=0)
+        data = pd.concat(data, axis=0).ffill(axis = 0).fillna(0)
         data.loc[:, 'date_today'] = pd.to_datetime(data['date_today'])
         df = []
         for fips in data['fips'].unique():
@@ -47,9 +47,10 @@ class GenerateTrainingData:
             temp.loc[:, "new_cases"] = temp['confirmed'].copy()
             # transform to daily cases
             for col in ["new_cases", "hospitalization"]:
-                t = temp[col].copy().sort_values().to_numpy()
+                t = temp[col].copy().to_numpy()
                 t[1:] = t[1:] - t[:-1]
                 temp = temp.iloc[1:]
+                t[t<0] = 0
                 temp.loc[:, col] = t[1:]
             df.append(temp)
         df = pd.concat(df, axis=0)
