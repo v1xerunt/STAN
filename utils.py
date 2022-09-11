@@ -146,3 +146,4 @@ def map_to_week(df, date_column='date_today', groupby_target=None):
     if groupby_target is not None:
         df = df.groupby('date_today', as_index=False)[groupby_target].sum()
     return df
+

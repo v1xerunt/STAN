@@ -46,7 +46,7 @@ class GenerateTrainingData:
             temp = data[data['fips'] == fips].sort_values('date_today')
             temp.loc[:, "new_cases"] = temp['confirmed'].copy()
             # transform to daily cases
-            for col in ["new_cases", "deaths", "hospitalization"]:
+            for col in ["new_cases", "hospitalization"]:
                 t = temp[col].copy().sort_values().to_numpy()
                 t[1:] = t[1:] - t[:-1]
                 temp = temp.iloc[1:]
