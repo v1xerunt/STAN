@@ -22,4 +22,8 @@ You can modify the detailed data settings. ```valid_window``` and ```test_window
 
 For hyperparameters of the STAN model, ```gru_dim``` indicates the GRU hidden dimension. ```num_heads``` indicates the number of graph attention heads. ```hidden_dim``` indicates the hidden dimension of the GAT layer.
 
+We use another setting ```normalize``` to decide whether to do the data normalization. With data normalization, model can be fitted in fewer epochs and the estimated $\beta$ and $\gamma$ of the SIR equation is more stable. However, we also find that without normalization, the model may get higher accuracy.
+
 Once finished training, you can get the estimated $\beta$ and $\gamma$ of the SIR equation used in our model by using ```model.alpha_scaled``` and ```model.beta_scaled```.
+
+We have noticed some data quality issues in the JHU data, for example zero cases in some days. This may significantly affect model's performance, especially when the input features and training objectives are purely from the JHU data. We're still working on fixing these issues.
