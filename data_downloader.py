@@ -39,11 +39,12 @@ class GenerateTrainingData:
         data = Pool().map(self.download_single_file, date_list)
         print('Finish download')
         data = [x for x in data if x is not None]
-        data = pd.concat(data, axis=0).ffill(axis = 0).fillna(0)
+        data = pd.concat(data, axis=0)#.ffill(axis = 0).fillna(0)
         data.loc[:, 'date_today'] = pd.to_datetime(data['date_today'])
         df = []
         for fips in data['fips'].unique():
             temp = data[data['fips'] == fips].sort_values('date_today')
+            temp = temp.ffill(axis=0).fillna(0)
             temp.loc[:, "new_cases"] = temp['confirmed'].copy()
             # transform to daily cases
             for col in ["new_cases", "hospitalization"]:
