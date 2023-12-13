@@ -2,7 +2,7 @@
 
 The source code for *STAN: Spatio-Temporal Attention Network for Pandemic Prediction Using Real World Evidence*
 
-We also recommend you check the HOIST model (https://github.com/v1xerunt/HOIST), which could achieve higher prediction performance in terms of spatio-temporal predictions.
+**We also recommend you check the HOIST model (https://github.com/v1xerunt/HOIST), which could achieve higher prediction performance in terms of spatio-temporal predictions.**
 
 ## Requirements
 
